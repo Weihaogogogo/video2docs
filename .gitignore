@@ -19,6 +19,7 @@ task_*/
 output*/
 
 # Claude
+Claude.md
 .claude/
 
 # Environment

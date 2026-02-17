@@ -4,6 +4,11 @@ import os
 from pathlib import Path
 from rich.console import Console
 
+# macOS Homebrew 库路径
+import platform
+if platform.system() == "Darwin":
+    os.environ.setdefault("DYLD_LIBRARY_PATH", "/opt/homebrew/lib")
+
 console = Console()
 
 
