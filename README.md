@@ -5,7 +5,6 @@
 - 新媒体运营：快速将视频核心内容提取为图文推文素材，高效实现跨平台内容分发与二次创作；
 - 创作者竞品分析：对同行视频进行结构化解构，通过时间戳、关键画面与文本对照，深入分析其叙事逻辑、节奏设计与信息密度。
 
-
 ## 功能特性
 
 ### 核心功能
@@ -76,22 +75,7 @@ sudo apt install ffmpeg
 **Windows:**
 下载 FFmpeg 并添加到系统 PATH。
 
-### 5. 安装 WeasyPrint 依赖（仅 PDF 输出需要）
-
-**macOS:**
-```bash
-brew install pango gtk+3 cairo
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0 libcairo2
-```
-
-**Windows:**
-WeasyPrint 在 Windows 上需要安装 GTK+ 3，可从 https://github.com/tschoonj/GTK-for-Windows-Runtime-Environments-Archive 下载。
-
-### 6. 配置环境变量
+### 5. 配置环境变量
 
 在项目根目录创建 `.env` 文件：
 

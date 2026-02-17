@@ -75,83 +75,123 @@ class PDFGenerator:
         return output_pdf
 
     def _markdown_to_html(self, md_content: str, base_dir: Path) -> str:
-        """将 Markdown 转换为 HTML（简化版）"""
+        """将 Markdown 转换为 HTML（使用 markdown 库）"""
+        import markdown
         import re
 
-        html_parts = []
-        lines = md_content.split('\n')
+        # 使用 markdown 库转换
+        md = markdown.Markdown(extensions=[
+            'extra',    # 表格、代码块等
+            'codehilite', # 代码高亮
+            'toc',      # 目录
+        ])
+        html_body = md.convert(md_content)
 
-        # 简单的 CSS 样式
+        # 处理图片路径 - 将相对路径转换为绝对路径
+        html_body = re.sub(
+            r'<img\s+(?:[^>]*?\s+)?src="(?!http|file://)([^"]+)"',
+            lambda m: f'<img src="file://{(base_dir / m.group(1)).resolve()}"',
+            html_body
+        )
+
+        # CSS 样式
         css = """
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 40px; line-height: 1.6; }
-            h1 { color: #333; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
-            h2 { color: #555; margin-top: 30px; }
-            h3 { color: #666; }
-            img { max-width: 100%; height: auto; margin: 10px 0; }
-            pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
-            code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
-            blockquote { border-left: 4px solid #0066cc; margin: 0; padding-left: 15px; color: #666; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background: #f5f5f5; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                margin: 40px;
+                line-height: 1.8;
+                color: #333;
+            }
+            h1 { color: #1a1a1a; border-bottom: 3px solid #0066cc; padding-bottom: 10px; }
+            h2 { color: #2d2d2d; margin-top: 35px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+            h3 { color: #444; margin-top: 25px; }
+            h4, h5, h6 { color: #555; }
+            img { max-width: 100%; height: auto; margin: 15px 0; border-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+            pre {
+                background: #f6f8fa;
+                padding: 15px;
+                border-radius: 6px;
+                overflow-x: auto;
+                border: 1px solid #e1e4e8;
+            }
+            code {
+                font-family: "SF Mono", Monaco, Consolas, monospace;
+                background: #f6f8fa;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 0.9em;
+            }
+            pre code { background: none; padding: 0; }
+            blockquote {
+                border-left: 4px solid #0066cc;
+                margin: 15px 0;
+                padding: 10px 20px;
+                background: #f9f9f9;
+                color: #555;
+            }
+            table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background: #f5f5f5; font-weight: 600; }
+            tr:nth-child(even) { background: #fafafa; }
+            ul, ol { padding-left: 25px; }
+            li { margin: 5px 0; }
+            hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
+            a { color: #0066cc; text-decoration: none; }
+            a:hover { text-decoration: underline; }
+            /* 代码高亮样式 */
+            .hll { background-color: #ffffcc; }
+            .c { color: #6a737d; font-style: italic; }
+            .k { color: #d73a49; font-weight: bold; }
+            .o { color: #22863a; }
+            .cm { color: #6a737d; font-style: italic; }
+            .cp { color: #005cc5; }
+            .c1 { color: #6a737d; font-style: italic; }
+            .cs { color: #6a737d; font-style: italic; }
+            .gd { color: #b31d28; background-color: #ffeef0; }
+            .ge { font-style: italic; }
+            .gr { color: #b31d28; }
+            .gh { color: #005cc5; font-weight: bold; }
+            .gi { color: #22863a; background-color: #f0fff4; }
+            .go { color: #6a737d; }
+            .gp { color: #e36209; font-weight: bold; }
+            .gs { font-weight: bold; }
+            .gu { color: #6f42c1; font-weight: bold; }
+            .gt { color: #b31d28; }
+            .w { color: #bbbbbb; }
+            .mf { color: #005cc5; }
+            .mh { color: #005cc5; }
+            .mi { color: #005cc5; }
+            .mo { color: #005cc5; }
+            .sb { color: #032f62; }
+            .sc { color: #032f62; }
+            .sd { color: #032f62; }
+            .s2 { color: #032f62; }
+            .se { color: #032f62; font-weight: bold; }
+            .sh { color: #032f62; }
+            .si { color: #e36209; }
+            .sx { color: #032f62; font-weight: bold; }
+            .sr { color: #22863a; }
+            .s1 { color: #032f62; }
+            .ss { color: #005cc5; }
+            .bp { color: #005cc5; }
+            .vc { color: #005cc5; }
+            .vg { color: #005cc5; }
+            .vi { color: #005cc5; }
+            .il { color: #005cc5; }
         </style>
         """
 
-        html_parts.append(f"<html><head><meta charset='utf-8'>{css}</head><body>")
-
-        in_code_block = False
-        for line in lines:
-            # 代码块
-            if line.startswith('```'):
-                if in_code_block:
-                    html_parts.append('</code></pre>')
-                    in_code_block = False
-                else:
-                    lang = line[3:].strip()
-                    html_parts.append(f'<pre><code class="language-{lang}">')
-                    in_code_block = True
-                continue
-
-            if in_code_block:
-                html_parts.append(line)
-                continue
-
-            # 图片
-            img_match = re.match(r'!\[(.*?)\]\((.+?)\)', line)
-            if img_match:
-                alt_text, img_path = img_match.groups()
-                # 转换为绝对路径
-                if not img_path.startswith('/') and not img_path.startswith('http'):
-                    img_abs_path = (base_dir / img_path).resolve()
-                    img_path = f"file://{img_abs_path}"
-                html_parts.append(f'<p><img src="{img_path}" alt="{alt_text}"></p>')
-                continue
-
-            # 标题
-            if line.startswith('# '):
-                html_parts.append(f'<h1>{line[2:]}</h1>')
-            elif line.startswith('## '):
-                html_parts.append(f'<h2>{line[3:]}</h2>')
-            elif line.startswith('### '):
-                html_parts.append(f'<h3>{line[4:]}</h3>')
-            # 引用
-            elif line.startswith('> '):
-                html_parts.append(f'<blockquote>{line[2:]}</blockquote>')
-            # 列表
-            elif line.startswith('- ') or line.startswith('* '):
-                html_parts.append(f'<li>{line[2:]}</li>')
-            # 分割线
-            elif line == '---':
-                html_parts.append('<hr>')
-            # 段落
-            elif line.strip():
-                html_parts.append(f'<p>{line}</p>')
-            else:
-                html_parts.append('<br>')
-
-        html_parts.append('</body></html>')
-        return '\n'.join(html_parts)
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    {css}
+</head>
+<body>
+{html_body}
+</body>
+</html>"""
 
     def _generate_pandoc(self, markdown_path: Path, output_pdf: Path) -> Path:
         """使用 Pandoc 生成 PDF"""
