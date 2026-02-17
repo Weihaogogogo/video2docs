@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Task outputs (auto-generated)
+task_*/
+output*/
+
+# Claude
+.claude/
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+
+# Build
+*.egg-info/
+dist/
+build/
