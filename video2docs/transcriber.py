@@ -10,6 +10,50 @@ import tempfile
 console = Console()
 
 
+# ============ Whisper 模型缓存（支持复用）============
+_model_cache: Dict[str, "WhisperModel"] = {}
+
+
+def get_cached_whisper_model(
+    model_name: str = "base",
+    device: str = "cpu",
+    compute_type: str = "int8"
+) -> "WhisperModel":
+    """
+    获取或创建缓存的 Whisper 模型
+
+    Args:
+        model_name: 模型名称 (base, small, medium, large)
+        device: 设备 (cpu, cuda)
+        compute_type: 计算类型 (int8, float16, etc)
+
+    Returns:
+        WhisperModel 实例
+    """
+    from faster_whisper import WhisperModel
+
+    cache_key = f"{model_name}_{device}_{compute_type}"
+
+    if cache_key not in _model_cache:
+        console.print(f"[cyan]首次加载 Whisper 模型: {model_name}...[/cyan]")
+        _model_cache[cache_key] = WhisperModel(
+            model_name,
+            device=device,
+            compute_type=compute_type
+        )
+    else:
+        console.print(f"[cyan]复用已加载的 Whisper 模型: {model_name}[/cyan]")
+
+    return _model_cache[cache_key]
+
+
+def clear_model_cache():
+    """清空模型缓存（通常在程序结束时调用）"""
+    global _model_cache
+    _model_cache.clear()
+    console.print("[cyan]模型缓存已清空[/cyan]")
+
+
 def is_model_downloaded(model_name: str = "base") -> bool:
     """
     检测 Whisper 模型是否已下载
@@ -214,25 +258,9 @@ class Transcriber:
 
     def _transcribe_local(self, audio_path: Path) -> List[TranscriptSegment]:
         """使用本地 Whisper 模型转录"""
-        # 检测模型是否已下载
-        model_downloaded = is_model_downloaded("base")
-
-        if model_downloaded:
-            console.print(f"[cyan]加载本地 Whisper 模型中...[/cyan]")
-        else:
-            console.print(f"[cyan]首次下载 Whisper 模型（约150MB），请耐心等待...[/cyan]")
-
         try:
-            from faster_whisper import WhisperModel
-
-            # 加载模型 - 首次会自动下载
-            status_text = "加载模型中..." if model_downloaded else "下载模型中..."
-            with console.status(f"[bold cyan]{status_text}[/bold cyan]") as status:
-                model = WhisperModel(
-                    "base",
-                    device="cpu",
-                    compute_type="int8"
-                )
+            # 使用缓存的模型（首次加载，后续复用）
+            model = get_cached_whisper_model("base", "cpu", "int8")
 
             # 执行转录
             segments, info = model.transcribe(

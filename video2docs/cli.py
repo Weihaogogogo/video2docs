@@ -53,8 +53,8 @@ def show_welcome():
   - 生成 Markdown + PDF 文档
 
 [yellow]使用方式：[/yellow]
-  1. 输入视频链接
-  2. 选择语音转文字方式
+  1. 选择语音转文字方式
+  2. 输入视频链接
   3. 等待自动转换完成
   4. 在任务目录查看结果
         """,
@@ -88,8 +88,26 @@ def select_whisper_mode() -> str:
     return "api"
 
 
-def run_conversion(url: str, base_path: Path, model: str = None, whisper_mode: str = None):
-    """执行转换流程"""
+def run_conversion(
+    url: str,
+    base_path: Path,
+    model: str,
+    whisper_mode: str,
+    transcriber=None
+):
+    """
+    执行转换流程
+
+    Args:
+        url: 视频链接
+        base_path: 基础路径
+        model: LLM 模型
+        whisper_mode: Whisper 模式
+        transcriber: 可选的转录器实例（用于复用）
+
+    Returns:
+        (success: bool, transcriber: Transcriber or None)
+    """
     from .config import get_settings
     from .downloader import VideoDownloader
     from .transcriber import Transcriber
@@ -111,11 +129,7 @@ base_url=your_api_base_url
 api_key=your_api_key
 model=your_model_name
         """)
-        return False
-
-    # 如果没有指定 whisper_mode，让用户选择
-    if whisper_mode is None:
-        whisper_mode = select_whisper_mode()
+        return False, transcriber
 
     # 如果选择 API 模式但未配置，返回错误
     if whisper_mode == "api" and not settings.is_whisper_api_configured:
@@ -124,7 +138,7 @@ model=your_model_name
         console.print("whisper_base_url=https://api.openai.com/v1")
         console.print("whisper_api_key=your_api_key")
         console.print("或选择本地模式 [2]")
-        return False
+        return False, transcriber
 
     # 使用命令行参数覆盖配置
     if model:
@@ -149,12 +163,12 @@ model=your_model_name
         video_info = downloader.get_video_info(url)
         if not video_info:
             console.print("[red]获取视频信息失败[/red]")
-            return False
+            return False, transcriber
 
         video_path = downloader.download(url)
         if not video_path:
             console.print("[red]视频下载失败[/red]")
-            return False
+            return False, transcriber
 
         console.print(f"   [OK] 下载完成: {video_path.name}\n")
 
@@ -162,26 +176,26 @@ model=your_model_name
         mode_display = "Whisper API" if whisper_mode == "api" else "本地模型"
         console.print(f"[bold cyan]阶段 2/6: 语音转文字 ({mode_display})[/bold cyan]")
 
-        if whisper_mode == "api":
-            # 创建 OpenAI 客户端
-            llm_client = OpenAI(
-                base_url=settings.whisper_base_url,
-                api_key=settings.whisper_api_key
-            )
-            transcriber = Transcriber(
-                mode="api",
-                llm_client=llm_client
-            )
-        else:
-            # 本地模式
-            transcriber = Transcriber(
-                mode="local"
-            )
+        # 如果没有传入 transcriber，则创建新的
+        if transcriber is None:
+            if whisper_mode == "api":
+                # 创建 OpenAI 客户端
+                llm_client = OpenAI(
+                    base_url=settings.whisper_base_url,
+                    api_key=settings.whisper_api_key
+                )
+                transcriber = Transcriber(
+                    mode="api",
+                    llm_client=llm_client
+                )
+            else:
+                # 本地模式
+                transcriber = Transcriber(mode="local")
 
         segments = transcriber.transcribe(video_path)
         if not segments:
             console.print("[red]转录失败[/red]")
-            return False
+            return False, transcriber
 
         # 合并零散片段
         merged_segments = transcriber.merge_segments_by_rule(
@@ -262,16 +276,16 @@ model=your_model_name
 
         console.print(table)
 
-        return True
+        return True, transcriber
 
     except KeyboardInterrupt:
         console.print("\n[yellow]用户中断操作[/yellow]")
-        return False
+        return False, transcriber
     except Exception as e:
         console.print(f"\n[red]错误: {str(e)}[/red]")
         import traceback
         console.print(traceback.format_exc())
-        return False
+        return False, transcriber
 
 
 @app.command()
@@ -284,29 +298,138 @@ def main(
     """
     将视频转换为 Markdown/PDF 文档
     """
+    from .transcriber import clear_model_cache
+
     base_path = Path(base_dir)
 
     # 如果没有提供URL，显示交互式界面
     if url is None:
         show_welcome()
+        # 进入连续处理模式
+        run_interactive_mode(base_path, model)
+    else:
+        # 单次执行模式
+        # 先选择 whisper 模式
+        whisper_mode = whisper if whisper else select_whisper_mode()
+
+        success, _ = run_conversion(url, base_path, model, whisper_mode)
+
+        if success:
+            console.print("\n[bold green]按回车键退出...[/bold green]")
+            input()
+        else:
+            console.print("\n[bold red]转换失败，请检查错误信息[/bold red]")
+            raise typer.Exit(1)
+
+    # 退出时清理模型缓存
+    clear_model_cache()
+
+
+def run_interactive_mode(base_path: Path, model: Optional[str] = None):
+    """
+    交互式连续处理模式
+
+    支持：
+    - 连续处理多个视频
+    - 失败时询问是否重试
+    - Whisper 模式沿用上次选择
+    """
+    # 第一次需要选择 whisper 模式
+    whisper_mode = select_whisper_mode()
+    transcriber = None  # 用于复用
+
+    while True:
+        console.print()
         url = Prompt.ask(
-            "[bold cyan]请输入视频链接[/bold cyan]",
-            default=""
+            "[bold cyan]请输入视频链接 (输入 n 退出)[/bold cyan]",
+            default="",
+            show_default=False
         )
 
-        if not url:
-            console.print("[red]未输入链接，退出[/red]")
-            raise typer.Exit(0)
+        # 检查退出
+        if not url or url.lower() in ['q', 'quit', 'exit', '退出', 'n']:
+            console.print("\n[yellow]感谢使用，再见！[/yellow]")
+            break
 
-    # 执行转换
-    success = run_conversion(url, base_path, model, whisper)
+        # 执行转换（支持重试）
+        success, transcriber = run_conversion_with_retry(
+            url, base_path, model, whisper_mode, transcriber
+        )
 
-    if success:
-        console.print("\n[bold green]按回车键退出...[/bold green]")
-        input()
-    else:
-        console.print("\n[bold red]转换失败，请检查错误信息[/bold red]")
-        raise typer.Exit(1)
+        if success:
+            # 询问是否继续
+            console.print()
+            continue_prompt = Prompt.ask(
+                "[bold]是否继续处理下一个视频? (y\/n)[/bold]",
+                default="y"
+            )
+
+            if continue_prompt.lower() == 'n':
+                console.print("\n[yellow]感谢使用，再见！[/yellow]")
+                break
+        else:
+            # 失败后询问是否重试或退出
+            console.print()
+            retry_prompt = Prompt.ask(
+                "[bold yellow]是否重新输入链接重试? (y\/n)[/bold yellow]",
+                default="y"
+            )
+
+            if retry_prompt.lower() not in ['y', 'yes', '是', '']:
+                console.print("\n[yellow]感谢使用，再见！[/yellow]")
+                break
+            # 否则继续循环，让用户输入新的链接
+
+
+def run_conversion_with_retry(
+    url: str,
+    base_path: Path,
+    model: str,
+    whisper_mode: str,
+    transcriber=None,
+    max_retries: int = 3
+):
+    """
+    带重试机制的转换执行
+
+    Args:
+        url: 视频链接
+        base_path: 基础路径
+        model: LLM 模型
+        whisper_mode: Whisper 模式
+        transcriber: 转录器实例
+        max_retries: 最大重试次数
+
+    Returns:
+        (success: bool, transcriber: Transcriber or None)
+    """
+    attempt = 1
+
+    while attempt <= max_retries:
+        success, transcriber = run_conversion(
+            url, base_path, model, whisper_mode, transcriber
+        )
+
+        if success:
+            return True, transcriber
+
+        # 失败，询问是否重试
+        if attempt < max_retries:
+            console.print(f"\n[yellow]第 {attempt} 次尝试失败[/yellow]")
+            retry = Prompt.ask(
+                f"是否重试? (剩余 {max_retries - attempt} 次) [y/n]",
+                default="y"
+            )
+
+            if retry.lower() not in ['y', 'yes', '是', '']:
+                return False, transcriber
+
+            attempt += 1
+        else:
+            console.print("\n[red]已达到最大重试次数，转换失败[/red]")
+            return False, transcriber
+
+    return False, transcriber
 
 
 if __name__ == "__main__":
