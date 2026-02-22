@@ -15,11 +15,43 @@ if %errorlevel% equ 0 (
     echo [INFO] ffmpeg not found, trying to install...
     where winget >nul 2>&1
     if %errorlevel% equ 0 (
+        echo [OK] winget found, installing ffmpeg...
         winget install ffmpeg
     ) else (
-        echo [ERROR] winget not found. Please install ffmpeg manually:
-        echo   Run: winget install ffmpeg
-        exit /b 1
+        echo [INFO] winget not found, installing ffmpeg via PowerShell...
+
+        :: Check if git-bash or wget available (comes with git for Windows)
+        where git >nul 2>&1
+        if %errorlevel% equ 0 (
+            :: Use git-bash to download ffmpeg
+            git bash -c "curl -L https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip -o ffmpeg.zip"
+        ) else (
+            :: Use PowerShell to download
+            powershell -Command "Invoke-WebRequest -Uri 'https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip' -OutFile 'ffmpeg.zip'"
+        )
+
+        if not exist ffmpeg.zip (
+            echo [ERROR] Failed to download ffmpeg. Please install manually from:
+            echo   https://ffmpeg.org/download.html
+            exit /b 1
+        )
+
+        echo Extracting ffmpeg...
+        powershell -Command "Expand-Archive -Path 'ffmpeg.zip' -DestinationPath 'C:\ffmpeg-temp' -Force"
+
+        :: Create ffmpeg directory in Program Files
+        if not exist "C:\ffmpeg" mkdir "C:\ffmpeg"
+        xcopy /E /Y "C:\ffmpeg-temp\ffmpeg-7.1-essentials_build\*" "C:\ffmpeg\"
+
+        :: Add to PATH
+        setx PATH "%PATH%;C:\ffmpeg\bin" >nul
+
+        :: Cleanup
+        rmdir /S /Q C:\ffmpeg-temp
+        del ffmpeg.zip
+
+        echo [OK] ffmpeg installed to C:\ffmpeg\bin
+        echo [INFO] Please restart your terminal to use ffmpeg
     )
 )
 
