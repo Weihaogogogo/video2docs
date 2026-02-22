@@ -56,8 +56,44 @@ class PDFGenerator:
 
         return None
 
+    def _get_local_fonts_css(self) -> str:
+        """获取本地字体 CSS"""
+        fonts_dir = Path(__file__).parent.parent / "fonts"
+
+        # 字体文件路径
+        noto_regular = fonts_dir / "NotoSansSC-Regular.ttf"
+        noto_bold = fonts_dir / "NotoSansSC-Bold.ttf"
+        jetbrains_regular = fonts_dir / "JetBrainsMono-Regular.ttf"
+        jetbrains_bold = fonts_dir / "JetBrainsMono-Bold.ttf"
+
+        return f"""
+        @font-face {{
+            font-family: 'Noto Sans SC';
+            src: local('{noto_regular}'), local('Noto Sans SC');
+            font-weight: normal;
+            font-style: normal;
+        }}
+        @font-face {{
+            font-family: 'Noto Sans SC';
+            src: local('{noto_bold}'), local('Noto Sans SC Bold');
+            font-weight: bold;
+            font-style: normal;
+        }}
+        @font-face {{
+            font-family: 'JetBrains Mono';
+            src: local('{jetbrains_regular}'), local('JetBrains Mono');
+            font-weight: normal;
+            font-style: normal;
+        }}
+        @font-face {{
+            font-family: 'JetBrains Mono';
+            src: local('{jetbrains_bold}'), local('JetBrains Mono Bold');
+            font-weight: bold;
+            font-style: normal;
+        }}
+        """
+
     def _generate_weasyprint(self, markdown_path: Path, output_pdf: Path) -> Path:
-        """使用 WeasyPrint 生成 PDF"""
         import weasyprint
         from weasyprint import HTML, CSS
 
@@ -79,11 +115,14 @@ class PDFGenerator:
         import markdown
         import re
 
-        # 使用 markdown 库转换
+        # 使用 markdown 库转换 - 添加更多 extensions
         md = markdown.Markdown(extensions=[
-            'extra',    # 表格、代码块等
-            'codehilite', # 代码高亮
-            'toc',      # 目录
+            'extra',        # 表格、代码块等
+            'codehilite',   # 代码高亮
+            'toc',          # 目录
+            'nl2br',        # 换行转 <br>
+            'tables',       # 表格
+            'fenced_code',  # 代码块
         ])
         html_body = md.convert(md_content)
 
@@ -94,91 +133,107 @@ class PDFGenerator:
             html_body
         )
 
-        # CSS 样式
-        css = """
+        # 获取本地字体 CSS
+        local_fonts_css = self._get_local_fonts_css()
+
+        # CSS 样式 - 紧凑型
+        css = f"""
         <style>
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                margin: 40px;
-                line-height: 1.8;
+            {local_fonts_css}
+            @page {{
+                margin: 15mm;
+                size: A4;
+            }}
+            body {{
+                font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                font-size: 12pt;
+                line-height: 1.5;
+                margin: 0;
+                padding: 0;
                 color: #333;
-            }
-            h1 { color: #1a1a1a; border-bottom: 3px solid #0066cc; padding-bottom: 10px; }
-            h2 { color: #2d2d2d; margin-top: 35px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-            h3 { color: #444; margin-top: 25px; }
-            h4, h5, h6 { color: #555; }
-            img { max-width: 100%; height: auto; margin: 15px 0; border-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-            pre {
+            }}
+            h1 {{ color: #1a1a1a; border-bottom: 2px solid #0066cc; padding-bottom: 8px; margin: 20px 0 15px 0; font-size: 20pt; }}
+            h2 {{ color: #2d2d2d; margin-top: 20px; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 16pt; }}
+            h3 {{ color: #444; margin-top: 15px; margin-bottom: 10px; font-size: 14pt; }}
+            h4, h5, h6 {{ color: #555; margin-top: 12px; margin-bottom: 8px; font-size: 12pt; }}
+            img {{ max-width: 100%; height: auto; margin: 10px 0; border-radius: 3px; }}
+            pre {{
                 background: #f6f8fa;
-                padding: 15px;
-                border-radius: 6px;
+                padding: 10px;
+                border-radius: 4px;
                 overflow-x: auto;
                 border: 1px solid #e1e4e8;
-            }
-            code {
-                font-family: "SF Mono", Monaco, Consolas, monospace;
+                font-size: 10pt;
+                line-height: 1.4;
+            }}
+            code {{
+                font-family: "JetBrains Mono", "SF Mono", Monaco, Consolas, monospace;
                 background: #f6f8fa;
-                padding: 2px 6px;
-                border-radius: 3px;
-                font-size: 0.9em;
-            }
-            pre code { background: none; padding: 0; }
-            blockquote {
-                border-left: 4px solid #0066cc;
-                margin: 15px 0;
-                padding: 10px 20px;
+                padding: 1px 4px;
+                border-radius: 2px;
+                font-size: 10pt;
+            }}
+            pre code {{ background: none; padding: 0; }}
+            blockquote {{
+                border-left: 3px solid #0066cc;
+                margin: 10px 0;
+                padding: 8px 15px;
                 background: #f9f9f9;
                 color: #555;
-            }
-            table { border-collapse: collapse; width: 100%; margin: 15px 0; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background: #f5f5f5; font-weight: 600; }
-            tr:nth-child(even) { background: #fafafa; }
-            ul, ol { padding-left: 25px; }
-            li { margin: 5px 0; }
-            hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
-            a { color: #0066cc; text-decoration: none; }
-            a:hover { text-decoration: underline; }
+            }}
+            table {{ border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 11pt; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background: #f5f5f5; font-weight: 600; }}
+            tr:nth-child(even) {{ background: #fafafa; }}
+            ul, ol {{ padding-left: 20px; margin: 8px 0; }}
+            ol {{ list-style-type: decimal; }}
+            ul {{ list-style-type: disc; }}
+            li {{ margin: 3px 0; }}
+            li > p {{ margin: 0; }}
+            hr {{ border: none; border-top: 1px solid #eee; margin: 15px 0; }}
+            a {{ color: #0066cc; text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+            p {{ margin: 8px 0; text-align: justify; }}
             /* 代码高亮样式 */
-            .hll { background-color: #ffffcc; }
-            .c { color: #6a737d; font-style: italic; }
-            .k { color: #d73a49; font-weight: bold; }
-            .o { color: #22863a; }
-            .cm { color: #6a737d; font-style: italic; }
-            .cp { color: #005cc5; }
-            .c1 { color: #6a737d; font-style: italic; }
-            .cs { color: #6a737d; font-style: italic; }
-            .gd { color: #b31d28; background-color: #ffeef0; }
-            .ge { font-style: italic; }
-            .gr { color: #b31d28; }
-            .gh { color: #005cc5; font-weight: bold; }
-            .gi { color: #22863a; background-color: #f0fff4; }
-            .go { color: #6a737d; }
-            .gp { color: #e36209; font-weight: bold; }
-            .gs { font-weight: bold; }
-            .gu { color: #6f42c1; font-weight: bold; }
-            .gt { color: #b31d28; }
-            .w { color: #bbbbbb; }
-            .mf { color: #005cc5; }
-            .mh { color: #005cc5; }
-            .mi { color: #005cc5; }
-            .mo { color: #005cc5; }
-            .sb { color: #032f62; }
-            .sc { color: #032f62; }
-            .sd { color: #032f62; }
-            .s2 { color: #032f62; }
-            .se { color: #032f62; font-weight: bold; }
-            .sh { color: #032f62; }
-            .si { color: #e36209; }
-            .sx { color: #032f62; font-weight: bold; }
-            .sr { color: #22863a; }
-            .s1 { color: #032f62; }
-            .ss { color: #005cc5; }
-            .bp { color: #005cc5; }
-            .vc { color: #005cc5; }
-            .vg { color: #005cc5; }
-            .vi { color: #005cc5; }
-            .il { color: #005cc5; }
+            .hll {{ background-color: #ffffcc; }}
+            .c {{ color: #6a737d; font-style: italic; }}
+            .k {{ color: #d73a49; font-weight: bold; }}
+            .o {{ color: #22863a; }}
+            .cm {{ color: #6a737d; font-style: italic; }}
+            .cp {{ color: #005cc5; }}
+            .c1 {{ color: #6a737d; font-style: italic; }}
+            .cs {{ color: #6a737d; font-style: italic; }}
+            .gd {{ color: #b31d28; background-color: #ffeef0; }}
+            .ge {{ font-style: italic; }}
+            .gr {{ color: #b31d28; }}
+            .gh {{ color: #005cc5; font-weight: bold; }}
+            .gi {{ color: #22863a; background-color: #f0fff4; }}
+            .go {{ color: #6a737d; }}
+            .gp {{ color: #e36209; font-weight: bold; }}
+            .gs {{ font-weight: bold; }}
+            .gu {{ color: #6f42c1; font-weight: bold; }}
+            .gt {{ color: #b31d28; }}
+            .w {{ color: #bbbbbb; }}
+            .mf {{ color: #005cc5; }}
+            .mh {{ color: #005cc5; }}
+            .mi {{ color: #005cc5; }}
+            .mo {{ color: #005cc5; }}
+            .sb {{ color: #032f62; }}
+            .sc {{ color: #032f62; }}
+            .sd {{ color: #032f62; }}
+            .s2 {{ color: #032f62; }}
+            .se {{ color: #032f62; font-weight: bold; }}
+            .sh {{ color: #032f62; }}
+            .si {{ color: #e36209; }}
+            .sx {{ color: #032f62; font-weight: bold; }}
+            .sr {{ color: #22863a; }}
+            .s1 {{ color: #032f62; }}
+            .ss {{ color: #005cc5; }}
+            .bp {{ color: #005cc5; }}
+            .vc {{ color: #005cc5; }}
+            .vg {{ color: #005cc5; }}
+            .vi {{ color: #005cc5; }}
+            .il {{ color: #005cc5; }}
         </style>
         """
 
@@ -198,6 +253,11 @@ class PDFGenerator:
         import pypandoc
         pypandoc.ensure_pandoc_installed()
 
+        # 获取字体路径
+        fonts_dir = Path(__file__).parent.parent / "fonts"
+        noto_regular = fonts_dir / "NotoSansSC-Regular.ttf"
+        jetbrains_regular = fonts_dir / "JetBrainsMono-Regular.ttf"
+
         # 切换到输出目录，确保图片路径正确
         orig_cwd = os.getcwd()
         try:
@@ -209,8 +269,11 @@ class PDFGenerator:
                 outputfile=str(output_pdf),
                 extra_args=[
                     '--resource-path=.:images',
-                    '-V', 'mainfont=-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto',
-                    '-V', 'geometry:margin=1in',
+                    '-V', f'mainfont={noto_regular}',
+                    '-V', f'monofont={jetbrains_regular}',
+                    '-V', 'geometry:margin=15mm',
+                    '-V', 'fontsize=11pt',
+                    '-V', 'linestretch=1.5',
                 ]
             )
         finally:

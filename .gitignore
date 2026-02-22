@@ -32,3 +32,6 @@ Claude.md
 *.egg-info/
 dist/
 build/
+
+#测试脚本
+test_pdf_export.py
