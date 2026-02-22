@@ -44,40 +44,25 @@ git clone <repository-url>
 cd video2docs
 ```
 
-### 2. 创建虚拟环境
+### 2. 自动安装（推荐）
 
+**macOS / Linux:**
 ```bash
-python -m venv venv
-
-# 激活虚拟环境
-# Linux/Mac:
-source venv/bin/activate
-# Windows:
-venv\Scripts\activate
-```
-
-### 3. 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. 安装 FFmpeg
-
-**macOS:**
-```bash
-brew install ffmpeg
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install ffmpeg
+./install.sh
 ```
 
 **Windows:**
-下载 FFmpeg 并添加到系统 PATH。
+```bash
+install.bat
+```
 
-### 5. 配置环境变量
+自动安装脚本会：
+- 检测/安装 FFmpeg
+- 创建虚拟环境 venv
+- 安装 Python 依赖
+- 验证安装
+
+### 3. 配置环境变量
 
 在项目根目录创建 `.env` 文件：
 
@@ -228,7 +213,7 @@ task_X/
 
 ### 2. 语音转录失败
 
-- 检查 FFmpeg 是否正确安装
+- 确保 FFmpeg 已正确安装（运行 `ffmpeg -version` 验证）
 - 确保视频包含音频轨道
 - 尝试更换语音转文字模式
 
@@ -259,6 +244,9 @@ video2docs/
 │   ├── prompts.py           # Prompt 模板
 │   ├── markdown_generator.py# Markdown 生成器
 │   └── pdf_generator.py     # PDF 生成器
+├── install.sh              # 安装脚本 (macOS/Linux)
+├── install.bat              # 安装脚本 (Windows)
+├── v2d.sh                   # 快速启动脚本
 ├── .env                    # 环境配置
 ├── requirements.txt        # Python 依赖
 └── README.md               # 项目说明
